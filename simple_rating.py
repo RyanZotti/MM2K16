@@ -95,7 +95,7 @@ for season in range(2015,2016):
                 # Only enter teams with a rating available (i.e., teams not playing for the first time)
                 if team in team_to_index:
                     rating = coeffs[team_to_index[team]]
-                    mysql.execute("""insert into SimpleRating(season, target_day, target_day_index, team_id, rating) values("{season}","{target_day}","{target_day_index}","{team_id}","{rating}")""".format(season=season,target_day=day_id,target_day_index=day_index,team_id=team_id,rating=rating))
+                    mysql.execute("""insert into SimpleRating(season, target_day, target_day_index, team_id, rating) values("{season}","{target_day}","{target_day_index}","{team_id}","{rating}")""".format(season=season,target_day=day_id,target_day_index=day_index,team_id=team,rating=rating))
                     #mysql.update()
                     con.commit()
             #print(model_mae)
