@@ -6,30 +6,35 @@ from sklearn.grid_search import GridSearchCV
 from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import LinearRegression
 con = pymysql.connect(host='localhost', unix_socket='/tmp/mysql.sock', user='root', passwd="", db='NCAABB')
 mysql = con.cursor(pymysql.cursors.DictCursor)
 
-'''
-def get_teams():
-    teams = {}
-    for row in mysql.fetchall():
-        team_id = row['team_id']
-        team_name = row['team_name']
-        teams[team_name] = team_id
-    return teams
-'''
+# Interview with 2014 winners: http://blog.kaggle.com/2014/04/21/qa-with-gregory-and-michael-1st-place-in-march-ml-mania/
 
+def target_day_teams(season,day):
+    mysql.execute("""
+    select daynum, wteam, lteam, wscore,lscore 
+    from RegularSeasonCompactResult_2016 
+    where season = {season} and daynum = {day}
+    """.format(season=season,day=day))
+    target_teams = []
+    for row in mysql.fetchall():
+        target_teams.append(row['wteam'])
+        target_teams.append(row['lteam'])
+    return target_teams
+        
 def get_teams(season,day):
     team_to_index = {}
     index_to_team = {}
     mysql.execute("""
     select distinct team_id from
     (select wteam as team_id 
-    from RegularSeasonDetailedResults_2016 
+    from RegularSeasonCompactResult_2016 
     where season = {season} and daynum < {day}
     union
     select lteam as team_id 
-    from RegularSeasonDetailedResults_2016 
+    from RegularSeasonCompactResult_2016 
     where season = {season} and daynum < {day}) as tbl
     """.format(season=season,day=day))
     for row_index, row in enumerate(mysql.fetchall()):
@@ -42,7 +47,7 @@ def get_days(season):
     days = []
     mysql.execute("""
         select distinct daynum 
-        from RegularSeasonDetailedResults_2016 
+        from RegularSeasonCompactResult_2016 
         where season = {season}""".format(season=season))
     for row in mysql.fetchall():
         days.append(row['daynum'])
@@ -51,7 +56,7 @@ def get_days(season):
 def get_games(season,day):
     mysql.execute("""
         select wteam, lteam, wscore,lscore 
-        from RegularSeasonDetailedResults_2016 
+        from RegularSeasonCompactResult_2016 
         where season = {season} and daynum < {day}""".format(season=season,day=day))
     games = []
     for row in mysql.fetchall():
@@ -62,7 +67,7 @@ def get_games(season,day):
         games.append(game)
     return games
     
-for season in range(1985,2016):
+for season in range(2015,2016):
     days = get_days(season)
     for day_index, day_id in enumerate(days):
         team_to_index,index_to_team = get_teams(season,day_id)
@@ -70,18 +75,31 @@ for season in range(1985,2016):
         target_col = np.zeros(len(team_to_index))
         games = get_games(season,day_id)
         matrix_updater = MatrixUpdater("simple_mov")
-        if day_index > 0:
+        if day_index > 5:
             matrix = matrix_updater.update_matrix(matrix,target_col,games,team_to_index)
+            #parameters = [{'alpha':np.arange(0.3,1,0.1),'l1_ratio':np.arange(0.1,1,0.1)}]
             parameters = [{'alpha':np.arange(0.3,1,0.1),'l1_ratio':np.arange(0.1,1,0.1)}]
-            model = GridSearchCV(ElasticNet(), parameters,n_jobs=8)
+            #model = GridSearchCV(ElasticNet(), parameters,n_jobs=8)
+            
             training = DataFrame(matrix)
             training['target']=Series(target_col)
             predictor_set = [team_id for team_id in index_to_team.keys()]
-            model.fit(training[predictor_set], training['target'])
+            #model.fit(training[predictor_set], training['target'])
+            model = LinearRegression().fit(training[predictor_set], training['target'])
             training['pred']=model.predict(training[predictor_set])
             model_mae = np.mean(np.abs(training['target']-training['pred']))
-            print(model_mae)
-            print()
-        print()    
+            target_teams = target_day_teams(season,day_id)
+            #coeffs = model.best_estimator_.coef_
+            coeffs = model.coef_
+            for team in target_teams:
+                # Only enter teams with a rating available (i.e., teams not playing for the first time)
+                if team in team_to_index:
+                    rating = coeffs[team_to_index[team]]
+                    mysql.execute("""insert into SimpleRating(season, target_day, target_day_index, team_id, rating) values("{season}","{target_day}","{target_day_index}","{team_id}","{rating}")""".format(season=season,target_day=day_id,target_day_index=day_index,team_id=team_id,rating=rating))
+                    #mysql.update()
+                    con.commit()
+            #print(model_mae)
+            print(day_index)
+    print(season)
             
 print("Finished.")
