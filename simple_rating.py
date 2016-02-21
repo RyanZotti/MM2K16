@@ -72,6 +72,11 @@ def build_model(model_type,training):
         model = GridSearchCV(ElasticNet(), parameters,n_jobs=8)
         model.fit(training[predictor_set], training['target'])
         return model.best_estimator_
+    if model_type == "Ridge Regression":
+        parameters = [{'alpha':np.arange(0.0,1,0.1)}]
+        model = GridSearchCV(Ridge(), parameters,n_jobs=8)
+        model.fit(training[predictor_set], training['target'])
+        return model.best_estimator_
     elif model_type == "Linear Regression":
         model = LinearRegression().fit(training[predictor_set], training['target'])
         return model
@@ -89,7 +94,7 @@ for season in range(2015,2016):
             training = DataFrame(matrix)
             training['target']=Series(target_col)
             predictor_set = [team_id for team_id in index_to_team.keys()]
-            model = build_model("Elastic Net",training)
+            model = build_model("Linear Regression",training)
             training['pred']=model.predict(training[predictor_set])
             model_mae = np.mean(np.abs(training['target']-training['pred']))
             target_teams = target_day_teams(season,day_id)
@@ -97,8 +102,10 @@ for season in range(2015,2016):
             for team in target_teams:
                 # Only enter teams with a rating available (i.e., teams not playing for the first time)
                 if team in team_to_index:
-                    rating = coeffs[team_to_index[team]]
-                    mysql.execute("""insert into SimpleRating(season, target_day, target_day_index, team_id, rating) values("{season}","{target_day}","{target_day_index}","{team_id}","{rating}")""".format(season=season,target_day=day_id,target_day_index=day_index,team_id=team,rating=rating))
+                    team_index = team_to_index[team]
+                    rating = coeffs[team_index]
+                    mov_avg = target_col[team_index]
+                    mysql.execute("""insert into SimpleRating(season, target_day, target_day_index, team_id, rating, mov_avg) values("{season}","{target_day}","{target_day_index}","{team_id}","{rating}","{mov_avg}")""".format(season=season,target_day=day_id,target_day_index=day_index,team_id=team,rating=rating,mov_avg=mov_avg))
                     con.commit()
             #print(model_mae)
             print(day_index)

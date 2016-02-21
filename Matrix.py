@@ -1,3 +1,5 @@
+import numpy as np
+
 class MatrixUpdater:
     
     update_type = "simple_mov"
@@ -10,8 +12,6 @@ class MatrixUpdater:
         return matrix
     
     def simple_mov_updater(self,matrix,target_col,games,team_to_index):
-        for team_index in range(len(matrix)):
-            matrix[team_index][team_index]=1
         for game in games:
             mov = game['wscore']-game['lscore']
             w_index = team_to_index[game['wteam']]
@@ -20,7 +20,11 @@ class MatrixUpdater:
             matrix[l_index][w_index]+=1
             target_col[w_index]+=mov
             target_col[l_index]+=-1*mov
-        # things = [game['wscore']-game['lscore'] for game in games]
+        total_games = np.sum(matrix,axis=1)
+        matrix = matrix / total_games
+        target_col = target_col / total_games
+        for team_index in range(len(matrix)):
+            matrix[team_index][team_index]=1
         return matrix,target_col
     
     def __init__(self,update_type):
