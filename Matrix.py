@@ -18,9 +18,10 @@ class MatrixUpdater:
             l_index = team_to_index[game['lteam']]
             matrix[w_index][l_index]+=1
             matrix[l_index][w_index]+=1
-        target_col[w_index]+=mov
-        target_col[l_index]+=-1*mov
-        return matrix
+            target_col[w_index]+=mov
+            target_col[l_index]+=-1*mov
+        # things = [game['wscore']-game['lscore'] for game in games]
+        return matrix,target_col
     
     def __init__(self,update_type):
         update_type = update_type
